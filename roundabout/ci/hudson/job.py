@@ -4,6 +4,7 @@ import json
 import base64
 import time
 import urllib2
+import types
 
 from roundabout import log
 from roundabout.ci import job
@@ -15,10 +16,10 @@ class Job(job.Job):
     def __init__(self, config, opener=None):
         super(Job, self).__init__(config, opener)
 
-        self.build = None
+        self.build = {}
         self.job_endpoint = "%s/job/%s/api/json?depth=1" % (
                                     config["ci"]["base_url"],
-                                    config["ci"]["job"])
+                                    "%s")
         self.build_endpoint = "%s/job/%s/buildWithParameters?branch=%s"
 
     def __nonzero__(self):
@@ -31,46 +32,65 @@ class Job(job.Job):
         """
 
         _job = cls(config, opener=opener)
-        log.info("Building: %s for %s" % (_job.config["ci"]["job"], branch))
 
-        if _job.req(_job.build_endpoint % (_job.config["ci"]["base_url"],
-                                         _job.config["ci"]["job"], branch)):
-            build_id = _job.properties['nextBuildNumber']
-            while True:
-                # Keep trying until we return something.
-                try:
-                    _job.build = [b for b
-                                    in _job.builds
-                                    if build_id == b.number][0]
-                    log.info("Build URL: %s" % _job.url)
-                    return _job
-                except IndexError:
-                    time.sleep(1)
+        if isinstance( job_index, types.StringTypes ):
+            _job._job_list = [_job.config["ci"]["job"]]
+        else:
+            _job._job_list = _job.config["ci"]["job"]
+        
+        for current_job in self.job_list:
+            log.info("Starting: %s for %s" % (current_job, branch))
+            build_retval = _job.req(_job.build_endpoint % (_job.config["ci"]["base_url"],
+                                               current_job, branch))
+            if build_retval:
+                build_id = _job.properties[current_job]['nextBuildNumber']
+                while True:
+                    # Keep trying until we return something.
+                    try:
+                        _job.build = [b for b
+                                        in _job.builds[current_job]
+                                        if build_id == b.number][0]
+                        log.info("Build URL: %s" % _job.url[current_job])
+                        return _job
+                    except IndexError:
+                        time.sleep(1)
+
+    @property
+    def job_list(self):
+        return self._job_list
 
     @property
     def builds(self):
         """ Return the list of builds for this job. """
-        return [build.Build(self, b) for b in self.properties['builds']]
+        return dict((job_name, 
+                    [build.Build(self, b) for b in self.properties[job_name]['builds']]) 
+                    for job_name in self.job_list )
 
     @property
     def properties(self):
-        """ Return the JSON decoded properties for this job. """
-        return self.req(self.job_endpoint, json_decode=True)
+        """ Return the JSON decoded properties for these jobs. """
+        return dict( (job_name, self.req(self.job_endpoint % job_name, json_decode = True ) )
+                     for job_name in self.job_list )
 
     @property
     def url(self):
-        """ Return the URL of our build """
-        return self.build.url
+        """ Return the URLs of our builds """
+        return dict( (job_name, self.build[job_name].url )
+                     for job_name in self.job_list )
 
     @property
     def complete(self):
         """ Return true if the build is complete """
-        return self.build.complete
+        for one_build in self.build.values():
+            if not one_build.complete:
+                return false
+        return true
 
     def reload(self):
         """ call ci.job.Job.reload to sleep, then reload the build."""
         super(Job, self).reload()
-        return self.build.reload()
+        return dict( (job_name, self.build[job_name].reload())
+                     for job_bane in self.job_list )
 
     def req(self, url, json_decode=False):
          """
