@@ -82,6 +82,9 @@ class Job(job.Job):
         b64string = base64.encodestring("%s:%s" % (username, password))[:-1]
         req = urllib2.Request(url)
         req.add_header("Authorization", "Basic %s" % b64string)
+        if "http_proxy" in self.config["ci"]:
+            req.set_proxy( self.config["ci"]["http_proxy"],
+                           self.config["ci"]["http_proxy_type"] )
 
         try:
             res = self.opener(req)
