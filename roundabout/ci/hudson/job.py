@@ -21,6 +21,7 @@ class Job(job.Job):
                                     config["ci"]["base_url"],
                                     "%s")
         self.build_endpoint = "%s/job/%s/buildWithParameters?branch=%s"
+        self._job_list = []
 
     def __nonzero__(self):
         return bool(self.build)
@@ -33,12 +34,12 @@ class Job(job.Job):
 
         _job = cls(config, opener=opener)
 
-        if isinstance( job_index, types.StringTypes ):
+        if isinstance( _job.config["ci"]["job"], types.StringTypes ):
             _job._job_list = [_job.config["ci"]["job"]]
         else:
             _job._job_list = _job.config["ci"]["job"]
         
-        for current_job in self.job_list:
+        for current_job in _job._job_list:
             log.info("Starting: %s for %s" % (current_job, branch))
             build_retval = _job.req(_job.build_endpoint % (_job.config["ci"]["base_url"],
                                                current_job, branch))
@@ -47,10 +48,11 @@ class Job(job.Job):
                 while True:
                     # Keep trying until we return something.
                     try:
-                        _job.build = [b for b
+                        _job.build[current_job] = [b for b
                                         in _job.builds[current_job]
                                         if build_id == b.number][0]
-                        log.info("Build URL: %s" % _job.url[current_job])
+                        log.info( "build is %s " % _job.build )
+#                        log.info("Build URL: %s" % _job.url[current_job])
                         return _job
                     except IndexError:
                         time.sleep(1)
@@ -75,22 +77,26 @@ class Job(job.Job):
     @property
     def url(self):
         """ Return the URLs of our builds """
-        return dict( (job_name, self.build[job_name].url )
+        print "builds are %s" % self.build
+        retval =  dict( (job_name, self.build[job_name].url )
                      for job_name in self.job_list )
+        print "retval is %s" % retval
+        return retval
 
     @property
     def complete(self):
         """ Return true if the build is complete """
         for one_build in self.build.values():
+            log.debug( "one build is %s" % one_build )
             if not one_build.complete:
-                return false
-        return true
+                return False
+        return True
 
     def reload(self):
         """ call ci.job.Job.reload to sleep, then reload the build."""
         super(Job, self).reload()
         return dict( (job_name, self.build[job_name].reload())
-                     for job_bane in self.job_list )
+                     for job_name in self.job_list )
 
     def req(self, url, json_decode=False):
          """

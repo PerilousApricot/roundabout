@@ -114,7 +114,9 @@ class HudsonTestCase(utils.TestHelper):
                                         'result': '',
                                         'url': 'http://fakeurl'}]}
         job = ci.job.Job.spawn('test_branch', self.config, opener=FakeCI)
-        self.assertFalse(job.build.complete)
+        
+        for build in job.build:
+            self.assertFalse(build.complete)
         self.assertFalse(job.complete)
         self.assertFalse(bool(job))
 
@@ -127,7 +129,8 @@ class HudsonTestCase(utils.TestHelper):
                                         'url': 'http://fakeurl'}]}
 
         job = ci.job.Job.spawn('test_branch', self.config, opener=FakeCI)
-        self.assertTrue(job.build.complete)
+        for build in job.build:
+            self.assertTrue(build.complete)
         self.assertFalse(bool(job))
 
     def test_spawned_hudson_build_sleeps(self):

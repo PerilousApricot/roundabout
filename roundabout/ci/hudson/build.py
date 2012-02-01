@@ -1,5 +1,5 @@
 """ A single build for a Hudson/Jenkins Job """
-
+from roundabout import log
 
 class Build(object):
     """ A single build for a Hudson/Jenkins Job """
@@ -24,6 +24,7 @@ class Build(object):
 
     def reload(self):
         """ Reload the build. """
+        log.info( "dict is %s" % self.__dict__ )
         self.__dict__ = [b.__dict__ for b in self.job.builds
                                           if b.number == self.number][0]
         return self
