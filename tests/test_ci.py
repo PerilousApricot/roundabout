@@ -26,9 +26,11 @@ class CITestCase(utils.TestHelper):
     def setUp(self):
         self.t = time.time()
         self.config = Config(roundabout.config.DEFAULT)
+        self.timebackup = time.sleep
 
     def tearDown(self):
         print "%s: %f" % (self.id(), time.time() - self.t)
+        time.sleep = self.timebackup
 
     def test_register(self):
         self.assertNothingRaised(ci.job.Job.register, 'a', self.A)
@@ -115,7 +117,7 @@ class HudsonTestCase(utils.TestHelper):
                                         'url': 'http://fakeurl'}]}
         job = ci.job.Job.spawn('test_branch', self.config, opener=FakeCI)
         
-        for build in job.build:
+        for build in job.builds:
             self.assertFalse(build.complete)
         self.assertFalse(job.complete)
         self.assertFalse(bool(job))
@@ -129,7 +131,7 @@ class HudsonTestCase(utils.TestHelper):
                                         'url': 'http://fakeurl'}]}
 
         job = ci.job.Job.spawn('test_branch', self.config, opener=FakeCI)
-        for build in job.build:
+        for build in job.builds:
             self.assertTrue(build.complete)
         self.assertFalse(bool(job))
 
