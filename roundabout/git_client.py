@@ -38,6 +38,7 @@ class Git(object):
         cn = str.join('', [random.choice(string.letters) for i in range(8)])
         self.clonepath = os.path.join(config["git"]["local_repo_path"], cn)
         try:
+            print "cloning from %s to %s" % (config["git"]["base_repo_url"], self.clonepath)
             self.repo = Repo.clone_from(config["git"]["base_repo_url"],
                                         self.clonepath)
         except GitCommandError, e:

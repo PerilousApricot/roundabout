@@ -11,7 +11,7 @@ from roundabout import log
 from roundabout import git_client
 from roundabout import pylint
 from roundabout import ci
-
+from roundabout.loop import RoundaboutLoop
 
 def main(command, options):
     """ Function called by bin/roundabout """
@@ -46,76 +46,31 @@ def main(command, options):
     finally:
         sys.exit(0)
 
-
-def do_post_merge_tasks(config, github):
-    try:
-        pull_requests = github.pull_requests
-        pull_requests = [(u, p) for u, p
-                                in pull_requests.items()
-                                if p.looks_good_to_a_human(github.approvers)]
-    except RuntimeError, e:
-        log.error("Unexpected response from github:\n %s" % str(e))
-        pull_requests = []
-
-    if not pull_requests:
-        log.info("No work to do, sleeping.")
-        sleeptime = int(config["default"].get("poll_sleep", 30))
-        time.sleep(sleeptime)
-        return
-
-    for url, pull_request in pull_requests:
-        log.info("processing %s" % url)
-
-        repo = git_client.Git(remote_name=pull_request.remote_name,
-                              remote_url=pull_request.remote_url,
-                              remote_branch=pull_request.remote_branch,
-                              config=config)
-
-        # Create a remote, fetch it, checkout the branch
-        with repo as git:
-            log.info("Cloning to %s" % repo.clonepath)
-
-            # Ensure we're on the requested branch for the pull_request.
-
-            base_branch = pull_request.base_branch
-            git.branch(base_branch).checkout()
-            try:
-                git.merge(git.remote_branch,
-                          squash=config["git"].get("squash_merges"))
-            except git_client.GitException, e:
-                pull_request.close(git_client.MERGE_FAIL_MSG % e)
-                return 
-
-            if config["pylint"]:
-                py_res = pylint.Pylint(config["pylint"]["modules"],
-                                       config=config, path=repo.clonepath)
-                if not py_res:
-                    pull_request.close(
-                        pylint.PYLINT_FAIL_MSG % (py_res.previous_score,
-                                                  py_res.current_score))
-                    return 
-
-            # push up a test branch
-            git.push(base_branch, remote_branch=git.local_branch_name)
-
-            with ci.job.Job.spawn(git.local_branch_name, config) as job:
-                while not job.complete:
-                    job.reload()
-
-                if job:
-                    # Successful build, good coverage, and clean pylint.
-                    git.push(base_branch)
-                    pull_request.close(git_client.BUILD_SUCCESS_MSG)
-                else:
-                    pull_request.close(git_client.BUILD_FAIL_MSG % job.url)
-
 def run(config):
     """
     Run roundabout forever or until you kill it.
     """
-
+    loop_handler     = RoundaboutLoop()
+    wake_time        = time.time()
+    github_wait_time = 0
+    ci_wait_time     = 0
     while True:
+        if wake_time > time.time():
+            log.info("No work to do, Sleeping")
+            time.sleep( wake_time - time.time())
+            
         github = roundabout.github.client.Client(config)
-        do_post_merge_tasks(config, github)
-
-
+        loop_handler.init_loop( github, config )
+        
+        # Process requests, possibly enqueueing new jobs
+        if time.time() > github_wait_time:
+            github_wait_time = loop_handler.process_requests()
+        
+        # Submit new jobs to the CI for processing
+        loop_handler.submit_jobs()
+        
+        # Check status of running jobs, update github if necessary
+        if time.time() > ci_wait_time or github_wait_time == 0:
+            ci_wait_time = loop_handler.query_jobs()
+        
+        wake_time = min( ci_wait_time, github_wait_time )

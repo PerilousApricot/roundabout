@@ -1,6 +1,7 @@
 import json
 import time
 import unittest
+import os.path
 
 import roundabout.config
 
@@ -30,7 +31,9 @@ class StubbedGithub(Client):
     def __init__(self, *args, **kwargs):
         super(StubbedGithub, self).__init__(*args, **kwargs)
         self.pull_request_files = ("pull_requests.json", "pull_request.json")
-
+        self.forced_url    = None
+        self.forced_branch = None
+        
     @property
     def teams(self):
         return utils.load(utils.testdata("teams.json"))
@@ -40,14 +43,26 @@ class StubbedGithub(Client):
             if len(args) == 2: # PullRequests
                 return utils.load(utils.testdata(self.pull_request_files[0]))
             elif len(args) == 3: # PullRequest
-                return utils.load(utils.testdata(self.pull_request_files[1]))
+                return self.wrap_remote(utils.load(utils.testdata(self.pull_request_files[1])))
+    
+    def force_remote(self, url, branch):
+        self.forced_url = url
+        self.forced_branch = branch
+    
+    def wrap_remote(self, req):
+        if self.forced_url != None:
+            req['pull']['head']['repository']['url'] = self.forced_url
+        if self.forced_branch != None:
+            req['pull']['head']['ref'] = self.forced_branch
+            
+        return req
 
 
 class GithubClientTestCase(unittest.TestCase):
     def setUp(self):
         self.t = time.time()
-        self.config = Config(roundabout.config.DEFAULT)
-        print self.config
+        self.config = Config(os.path.join(os.path.dirname(__file__),"..",roundabout.config.DEFAULT))
+        self.config["default"]["lgtm"] = "LGTM"
         self.client = Client(conn_class=FakeGithub,
                              config=self.config)
 
@@ -226,3 +241,6 @@ class GithubClientTestCase(unittest.TestCase):
         rejected_issue = pull_request.close(reject_message)
         self.assertEqual(u'closed', rejected_issue.state)
 
+
+if __name__ == '__main__':
+    unittest.main()

@@ -16,6 +16,13 @@ def create_test_repo():
             fp.write("This is just test stuff")
         repo.git.execute(("git", "add", "README"))
         repo.git.execute(("git", "commit", "-m", "Test commit"))
+        repo.git.execute(("git", "checkout", "-b", "testbranch"))
+        with open(os.path.join(repo_path, "README"), "w") as fp:
+            fp.write("Blowing your mind")
+        repo.git.execute(("git", "add", "README"))
+        repo.git.execute(("git", "commit", "-m", "Testing commit to a branch"))
+        repo.git.execute(("git", "checkout", "master"))
+        
     return repo_path
 
 

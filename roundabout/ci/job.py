@@ -2,6 +2,7 @@
 
 import time
 import urllib2
+import types
 
 from roundabout import log
 
@@ -58,15 +59,22 @@ class Job(object):
         raise NotImplementedError("Descendent classes should implement this")
 
     @classmethod
-    def spawn(cls, branch, config, opener=None):
+    def spawn(cls, branch, config, build_name=None, opener=None):
         """
         Create and return a paramaterized Job based on the CI config.
         """
-
+        if build_name == None:
+            # to support unittests
+            # TODO: remove this and then fix the tests
+            if isinstance( config["ci"]["job"], types.StringTypes ):
+                build_name = config["ci"]["job"]
+            else:
+                build_name = config["ci"]["job"][0]
+                
         ci_class = get_ci_class(config["ci"]["class"])
         log.info("Starting %s job" % config["ci"]["class"])
 
-        return ci_class.spawn(branch, config, opener)
+        return ci_class.spawn(branch, config, build_name, opener)
 
     @classmethod
     def register(cls, name, job_class):

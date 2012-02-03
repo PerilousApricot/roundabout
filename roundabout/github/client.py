@@ -95,6 +95,11 @@ class PullRequest(object):
         self.robot_lgtm_text = robot_lgtm_text
 
         self.__dict__.update(self.__get_full_request())
+    
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+    def __ne__(self, other):
+        return self.__dict__ != other.__dict__
 
     @property
     def remote_url(self):
@@ -155,7 +160,6 @@ class PullRequest(object):
         Takes a list of approvers and checks if any of the approvers have
         "lgtmed" the request. Returns true if so, None otherwise.
         """
-
         lgtm_re = re.compile("^%s$" % re.escape(self.lgtm_text), re.I)
         rejected_re = re.compile("rejecting")
 
